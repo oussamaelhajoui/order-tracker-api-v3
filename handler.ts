@@ -20,6 +20,7 @@ export const api: APIGatewayProxyHandler = async (event, _context) => {
   const headers = {
     'Content-Type': 'application/json',
   };
+  console.log('hello we got a hit!')
 
   try {
     let paramId;
@@ -108,13 +109,16 @@ export const api: APIGatewayProxyHandler = async (event, _context) => {
           ReturnValues: 'ALL_NEW'
         };
         console.log('Updating', "id: " + paramId, params);
-        body = await db.update(JSON.parse(event.body))
+        body = await db.update(params)
           .promise()
           .then((res) => {
             console.log(res);
             returnHandler = response(200, successMessage, event, res.Attributes);
           })
-          .catch((err) => response(200, failedMessage, event, err));
+          .catch((err) => {
+            console.log(err);
+            returnHandler = response(400, failedMessage, event, err)
+          });
         break;
       default:
         throw new Error(`Unsupported method "${event.httpMethod}"`);
