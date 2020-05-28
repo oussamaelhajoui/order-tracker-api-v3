@@ -1,0 +1,64 @@
+service:
+  name: order-tracker-api-v3
+
+custom:
+  webpack:
+    webpackConfig: ./webpack.config.js
+    includeModules: true
+  configuration:
+    ORDERS_TABLE: orders
+    MAIN_STAGE: dev 
+# Add the serverless-webpack plugin
+plugins:
+  - serverless-webpack
+
+provider:
+  name: aws
+  runtime: nodejs12.x
+  
+  environment: ${self:custom.configuration}
+  stage: ${opt:stage, self:custom.MAIN_STAGE}
+  iamRoleStatements:
+   - Effect: "Allow"
+     Action:
+        - dynamodb:DescribeTable
+        - dynamodb:Scan
+        - dynamodb:GetItem
+        - dynamodb:PutItem
+        - dynamodb:UpdateItem
+        - dynamodb:DeleteItem
+     Resource:
+      - "arn:aws:dynamodb:${self:provider.region}:*:table/${self:custom.configuration.ORDERS_TABLE}"
+  apiGateway:
+    minimumCompressionSize: 1024 # Enable gzip compression for responses > 1 KB
+  environment:
+    AWS_NODEJS_CONNECTION_REUSE_ENABLED: 1
+
+functions:
+  hello:
+    handler: handler.api
+    events:
+      - http:
+          path: v1/posts
+          method: post
+          cors: true
+          
+      - http:
+          path: v1/posts/{id}
+          method: get
+          cors: true
+         
+      - http:
+          path: v1/posts
+          method: get
+          cors: true
+
+      - http:
+          path: v1/posts/{id}
+          method: put
+          cors: true
+
+      - http:
+          path: v1/posts/{id}
+          method: delete
+          cors: true
