@@ -8,6 +8,7 @@ custom:
   configuration:
     ORDERS_TABLE: orders
     MAIN_STAGE: dev 
+    AWS_NODEJS_CONNECTION_REUSE_ENABLED: 1
 # Add the serverless-webpack plugin
 plugins:
   - serverless-webpack
@@ -15,9 +16,9 @@ plugins:
 provider:
   name: aws
   runtime: nodejs12.x
-  
+  region: eu-west-2
   environment: ${self:custom.configuration}
-  stage: ${opt:stage, self:custom.MAIN_STAGE}
+  stage: ${opt:stage, self:custom.configuration.MAIN_STAGE}
   iamRoleStatements:
    - Effect: "Allow"
      Action:
@@ -31,44 +32,43 @@ provider:
       - "arn:aws:dynamodb:${self:provider.region}:*:table/${self:custom.configuration.ORDERS_TABLE}"
   apiGateway:
     minimumCompressionSize: 1024 # Enable gzip compression for responses > 1 KB
-  environment:
-    AWS_NODEJS_CONNECTION_REUSE_ENABLED: 1
+    
 
 functions:
-  hello:
+  api:
     handler: handler.api
     events:
-      - http:
-          path: v1/posts
-          method: post
-          cors: true
           
-      - http:
-          path: v1/posts/{id}
-          method: get
-          cors: true
+      # - http:
+      #     path: v1/posts/{id}
+      #     method: get
+      #     cors: true
          
       - http:
-          path: v1/posts
+          path: v1/orders
           method: get
           cors: true
 
       - http:
-          path: v1/posts/{id}
+          path: v1/orders
+          method: post
+          cors: true
+      - http:
+          path: v1/orders/{id}
           method: put
           cors: true
 
       - http:
-          path: v1/posts/{id}
+          path: v1/orders/{id}
           method: delete
           cors: true
 
 resources:
   Resources:
-    PostsTable:
+    OrdersTable:
       Type: AWS::DynamoDB::Table
       Properties:
-        TableName: ${self:custom.settings.ORDERS_TABLE}
+        TableName: ${self:custom.configuration.ORDERS_TABLE}
         BillingMode: PAY_PER_REQUEST
         AttributeDefinitions:
         - AttributeName: "id"
