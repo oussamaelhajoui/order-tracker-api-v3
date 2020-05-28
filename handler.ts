@@ -12,6 +12,7 @@ const ordersTable = process.env.ORDERS_TABLE;
 
 export const api: APIGatewayProxyHandler = async (event, _context) => {
   let body;
+  let returnHandler = null;
   const statusCode = 200;
   const successMessage = 'Operation succeeded';
   const failedMessage = 'Operation failed';
@@ -21,47 +22,65 @@ export const api: APIGatewayProxyHandler = async (event, _context) => {
   };
 
   try {
+    let paramId;
     switch (event.httpMethod) {
       case 'DELETE':
-        return body = await db.delete({ TableName: ordersTable, Key: { id: reqBody.id } })
+        paramId = event.pathParameters.id;
+        body = await db.delete({ TableName: ordersTable, Key: { id: paramId } })
           .promise()
           .then(res => {
             console.log(res);
-            return response(statusCode, successMessage, res)
+            return response(statusCode, successMessage, event)
           })
           .catch(err => {
             console.log(err);
-            return response(statusCode, `${failedMessage}: ${err}`);
+            returnHandler = response(statusCode, `${failedMessage}: ${err}`, event);
           })
         break;
       case 'GET':
-        return body = await db
-          .scan({ TableName: ordersTable })
+        if (event.resource === '/v1/orders') {
+          body = await db
+            .scan({ TableName: ordersTable })
+            .promise()
+            .then(res => {
+              console.log(res);
+              returnHandler = response(statusCode, successMessage + ": " + uuid(), event, res.Items.sort(sortByDate))
+            })
+            .catch(err => {
+              console.log(err);
+              returnHandler = response(statusCode, `${failedMessage}: ${err}`, event);
+            })
+          break;
+        }
+        paramId = event.pathParameters.id;
+        if (!paramId) { break; }
+        body = await db
+          .get({ TableName: ordersTable, Key: { id: paramId } })
           .promise()
           .then(res => {
             console.log(res);
-            return response(statusCode, successMessage, res.Items.sort(sortByDate))
+            returnHandler = response(statusCode, successMessage + ": " + uuid(), event, res.Item)
           })
           .catch(err => {
             console.log(err);
-            return response(statusCode, `${failedMessage}: ${err}`);
+            returnHandler = response(statusCode, `${failedMessage}: ${err}`, event);
           })
         break;
       case 'POST':
-        if (validationFailed(reqBody)) { return response(400, 'Missing fields to process request') }
+        if (validationFailed(reqBody)) { return response(400, 'Missing fields to process request', event) }
         reqBody.id = uuid();
-        return body = await db.put({ TableName: ordersTable, Item: reqBody })
+        body = await db.put({ TableName: ordersTable, Item: reqBody })
           .promise()
           .then(() => {
-            return response(statusCode, successMessage, reqBody)
+            returnHandler = response(statusCode, successMessage, reqBody)
 
           })
         break;
       case 'PUT':
-        const id = event.pathParameters.id;
+        paramId = event.pathParameters.id;
         const params = {
           Key: {
-            id: id
+            id: paramId
           },
           TableName: ordersTable,
           ConditionExpression: 'attribute_exists(id)',
@@ -88,14 +107,14 @@ export const api: APIGatewayProxyHandler = async (event, _context) => {
           },
           ReturnValues: 'ALL_NEW'
         };
-        console.log('Updating', "id: " + id, params);
-        return body = await db.update(JSON.parse(event.body))
+        console.log('Updating', "id: " + paramId, params);
+        body = await db.update(JSON.parse(event.body))
           .promise()
           .then((res) => {
             console.log(res);
-            return response(200, successMessage, res.Attributes);
+            returnHandler = response(200, successMessage, event, res.Attributes);
           })
-          .catch((err) => response(200, failedMessage, err));
+          .catch((err) => response(200, failedMessage, event, err));
         break;
       default:
         throw new Error(`Unsupported method "${event.httpMethod}"`);
@@ -105,7 +124,7 @@ export const api: APIGatewayProxyHandler = async (event, _context) => {
   } finally {
     body = JSON.stringify(body);
   }
-
+  if (returnHandler !== null) return returnHandler
   return {
     statusCode,
     body,
@@ -114,12 +133,3 @@ export const api: APIGatewayProxyHandler = async (event, _context) => {
 
 }
 
-
-
-// return {
-//   statusCode: 200,
-//   body: JSON.stringify({
-//     message: 'Go Serverless Webpack (Typescript) v1.0! Your function executed successfully!',
-//     input: event,
-//   }, null, 2),
-// };

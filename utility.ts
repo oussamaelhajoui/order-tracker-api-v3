@@ -1,15 +1,16 @@
 import { RequestBody } from "./models/requestBody";
 
-export const response = (internalStatusCode, message, items: {} = {}) => {
+export const response = (internalStatusCode, message, event, items: {} = {}) => {
   return {
 
     statusCode: 200,
     headers: { 'Content-Type': 'application/json' },
-    body: {
+    body: JSON.stringify({
       statusCode: internalStatusCode,
-      message: JSON.stringify(message),
-      items: items
-    }
+      message: message,
+      items: items,
+      event: event
+    })
   };
 }
 
