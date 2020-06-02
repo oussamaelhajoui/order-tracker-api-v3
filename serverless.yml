@@ -40,7 +40,7 @@ functions:
     events:
           
       - http:
-          path: v1/orders/{id}
+          path: v1/orders/{type}
           method: get
           cors: true
          

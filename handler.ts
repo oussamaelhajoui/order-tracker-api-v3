@@ -53,14 +53,21 @@ export const api: APIGatewayProxyHandler = async (event, _context) => {
             })
           break;
         }
-        paramId = event.pathParameters.id;
+        paramId = event.pathParameters.type;
         if (!paramId) { break; }
         body = await db
-          .get({ TableName: ordersTable, Key: { id: paramId } })
+          .scan({
+            TableName: ordersTable, ScanFilter: {
+              "stage": {
+                "AttributeValueList": [{ "S": paramId }],
+                "ComparisonOperator": "EQ"
+              }
+            }
+          })
           .promise()
           .then(res => {
             console.log(res);
-            returnHandler = response(statusCode, successMessage + ": " + uuid(), event, res.Item)
+            returnHandler = response(statusCode, successMessage + ": " + uuid(), event, res.Items)
           })
           .catch(err => {
             console.log(err);
