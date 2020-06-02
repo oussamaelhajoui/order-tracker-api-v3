@@ -1,10 +1,10 @@
-import { APIGatewayProxyHandler } from 'aws-lambda';
+import { APIGatewayProxyHandler, APIGatewayProxyEvent } from 'aws-lambda';
 import 'source-map-support/register';
 
 import * as AWS from 'aws-sdk'
 import { v4 as uuid } from 'uuid';
 import { response, sortByDate, validationFailed } from "./utility";
-import { RequestBody } from "./models/requestBody";
+import { RequestBody, changeLog, Stage } from "./models/requestBody";
 
 
 const db = new AWS.DynamoDB.DocumentClient({ apiVersion: '2012-08-10', region: 'eu-west-2' });
@@ -70,6 +70,7 @@ export const api: APIGatewayProxyHandler = async (event, _context) => {
       case 'POST':
         if (validationFailed(reqBody)) { return response(400, 'Missing fields to process request', event) }
         reqBody.id = uuid();
+        reqBody.changeLog.push({ "currentStage": Stage.ToShip, "eventDate": new Date(), "ip": event.multiValueHeaders['X-Forwarded-For'][0] });
         body = await db.put({ TableName: ordersTable, Item: reqBody })
           .promise()
           .then(() => {
@@ -79,6 +80,7 @@ export const api: APIGatewayProxyHandler = async (event, _context) => {
         break;
       case 'PUT':
         paramId = event.pathParameters.id;
+        reqBody.changeLog.push({ "currentStage": reqBody.stage, "eventDate": new Date(), "ip": event.multiValueHeaders['X-Forwarded-For'][0] })
         const params = {
           Key: {
             id: paramId
@@ -94,7 +96,10 @@ export const api: APIGatewayProxyHandler = async (event, _context) => {
           postcode = :postcode, 
           stad = :stad, 
           land = :land, 
-          orderDate = :orderDate`,
+          orderDate = :orderDate,
+          stage = :stage, 
+          changeLog = :changeLog`,
+
           ExpressionAttributeValues: {
             ':klantnaam': reqBody.klantnaam,
             ':product': reqBody.product,
@@ -105,6 +110,8 @@ export const api: APIGatewayProxyHandler = async (event, _context) => {
             ':stad': reqBody.stad,
             ':land': reqBody.land,
             ':orderDate': reqBody.orderDate,
+            ':stage': reqBody.stage,
+            ':changeLog': reqBody.changeLog,
           },
           ReturnValues: 'ALL_NEW'
         };
