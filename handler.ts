@@ -1,10 +1,10 @@
-import { APIGatewayProxyHandler, APIGatewayProxyEvent } from 'aws-lambda';
+import { APIGatewayProxyHandler } from 'aws-lambda';
 import 'source-map-support/register';
 
 import * as AWS from 'aws-sdk'
 import { v4 as uuid } from 'uuid';
 import { response, sortByDate, validationFailed } from "./utility";
-import { RequestBody, changeLog, Stage } from "./models/requestBody";
+import { RequestBody, Stage } from "./models/requestBody";
 
 
 const db = new AWS.DynamoDB.DocumentClient({ apiVersion: '2012-08-10', region: 'eu-west-2' });
