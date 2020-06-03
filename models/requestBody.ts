@@ -8,20 +8,20 @@ export class RequestBody {
   postcode?: string;
   stad?: string;
   land?: string;
-  orderDate?: Date;
+  orderDate?: string;
   stage?: Stage
-  changeLog?: changeLog[]
+  changeLog?: ChangeLog[]
 }
 
-export class changeLog {
+export class ChangeLog {
   currentStage: Stage;
-  eventDate: Date;
+  eventDate: string;
   ip: string
 }
 
 export enum Stage {
   toAccept,
   toProcess,
-  ToShip,
+  toShip,
   shipped
 }

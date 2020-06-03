@@ -1,3 +1,5 @@
+org: jackow11
+app: order-tracker-api
 service:
   name: order-tracker-api-v3
 
@@ -40,7 +42,7 @@ functions:
     events:
           
       - http:
-          path: v1/orders/{type}
+          path: v1/orders/{id}
           method: get
           cors: true
          

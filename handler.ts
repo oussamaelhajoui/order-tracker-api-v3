@@ -4,8 +4,11 @@ import 'source-map-support/register';
 import * as AWS from 'aws-sdk'
 import { v4 as uuid } from 'uuid';
 import { response, sortByDate, validationFailed } from "./utility";
-import { RequestBody, Stage } from "./models/requestBody";
+import { RequestBody, Stage, ChangeLog } from "./models/requestBody";
+import * as moment from "moment";
 
+moment().locale('nl');
+  
 
 const db = new AWS.DynamoDB.DocumentClient({ apiVersion: '2012-08-10', region: 'eu-west-2' });
 const ordersTable = process.env.ORDERS_TABLE;
@@ -17,6 +20,7 @@ export const api: APIGatewayProxyHandler = async (event, _context) => {
   const successMessage = 'Operation succeeded';
   const failedMessage = 'Operation failed';
   const reqBody: RequestBody = JSON.parse(event.body);
+  const currDate = moment().format("DD-MM-YYYY HH:mm:ss")
   const headers = {
     'Content-Type': 'application/json',
   };
@@ -39,7 +43,9 @@ export const api: APIGatewayProxyHandler = async (event, _context) => {
           })
         break;
       case 'GET':
+        console.log('got get request')
         if (event.resource === '/v1/orders') {
+          console.log('got get request all orders')
           body = await db
             .scan({ TableName: ordersTable })
             .promise()
@@ -53,31 +59,36 @@ export const api: APIGatewayProxyHandler = async (event, _context) => {
             })
           break;
         }
-        paramId = event.pathParameters.type;
-        if (!paramId) { break; }
+        paramId = parseInt(event.pathParameters.id);
+        console.log('got stage request', paramId)
+        if (paramId === null) { break; }
         body = await db
           .scan({
-            TableName: ordersTable, ScanFilter: {
-              "stage": {
-                "AttributeValueList": [{ "S": paramId }],
-                "ComparisonOperator": "EQ"
-              }
-            }
+            TableName: ordersTable,
+            FilterExpression : 'stage = :stage',
+            ExpressionAttributeValues : {':stage' : paramId}
           })
           .promise()
           .then(res => {
             console.log(res);
-            returnHandler = response(statusCode, successMessage + ": " + uuid(), event, res.Items)
+            console.log('there is a response')
+            returnHandler = response(statusCode, successMessage + ": " + uuid(), event, res.Items) 
           })
           .catch(err => {
             console.log(err);
+            console.log('there is no response')
             returnHandler = response(statusCode, `${failedMessage}: ${err}`, event);
           })
+        console.log('finished req', body);
         break;
       case 'POST':
         if (validationFailed(reqBody)) { return response(400, 'Missing fields to process request', event) }
+        console.log("First time var",reqBody);
         reqBody.id = uuid();
-        reqBody.changeLog.push({ "currentStage": Stage.ToShip, "eventDate": new Date(), "ip": event.multiValueHeaders['X-Forwarded-For'][0] });
+        reqBody.changeLog = [];
+        reqBody.changeLog.push({ "currentStage": Stage.toAccept, "eventDate": currDate, "ip": event.multiValueHeaders['X-Forwarded-For'][0] });
+        reqBody.stage = Stage.toAccept;
+        console.log("Second time var",reqBody);
         body = await db.put({ TableName: ordersTable, Item: reqBody })
           .promise()
           .then(() => {
@@ -87,7 +98,26 @@ export const api: APIGatewayProxyHandler = async (event, _context) => {
         break;
       case 'PUT':
         paramId = event.pathParameters.id;
-        reqBody.changeLog.push({ "currentStage": reqBody.stage, "eventDate": new Date(), "ip": event.multiValueHeaders['X-Forwarded-For'][0] })
+        if(reqBody.stage){
+          if(typeof reqBody.stage === "string"){
+            reqBody.stage = Stage[reqBody.stage as keyof typeof Stage];
+          }
+        }
+        reqBody.changeLog = [];
+        body = await db
+        .get({ TableName: ordersTable, Key: { id: paramId } })	
+        .promise()
+        .then(res => {
+          console.log(res);
+          res.Item.changeLog.forEach((element: ChangeLog) => {
+            reqBody.changeLog.unshift(element)
+          });
+        })
+        .catch(err => {
+          console.log(err);
+          returnHandler = response(statusCode, `${failedMessage}: ${err}`, event);
+        })
+        reqBody.changeLog.unshift({ "currentStage": reqBody.stage, "eventDate": currDate, "ip": event.multiValueHeaders['X-Forwarded-For'][0] })
         const params = {
           Key: {
             id: paramId
