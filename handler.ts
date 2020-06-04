@@ -7,13 +7,17 @@ import { response, sortByDate, validationFailed } from "./utility";
 import { RequestBody, Stage, ChangeLog } from "./models/requestBody";
 import * as moment from "moment";
 
+
+const middy = require('middy')
+const { cors } = require('middy/middlewares')
+
 moment().locale('nl');
-  
+
 
 const db = new AWS.DynamoDB.DocumentClient({ apiVersion: '2012-08-10', region: 'eu-west-2' });
 const ordersTable = process.env.ORDERS_TABLE;
 
-export const api: APIGatewayProxyHandler = async (event, _context) => {
+const apiFunction: APIGatewayProxyHandler = async (event, _context) => {
   let body;
   let returnHandler = null;
   const statusCode = 200;
@@ -23,6 +27,10 @@ export const api: APIGatewayProxyHandler = async (event, _context) => {
   const currDate = moment().format("DD-MM-YYYY HH:mm:ss")
   const headers = {
     'Content-Type': 'application/json',
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "OPTIONS,POST,GET,PUT",
+    'Access-Control-Allow-Credentials': true,
   };
   console.log('hello we got a hit!')
 
@@ -65,14 +73,14 @@ export const api: APIGatewayProxyHandler = async (event, _context) => {
         body = await db
           .scan({
             TableName: ordersTable,
-            FilterExpression : 'stage = :stage',
-            ExpressionAttributeValues : {':stage' : paramId}
+            FilterExpression: 'stage = :stage',
+            ExpressionAttributeValues: { ':stage': paramId }
           })
           .promise()
           .then(res => {
             console.log(res);
             console.log('there is a response')
-            returnHandler = response(statusCode, successMessage + ": " + uuid(), event, res.Items) 
+            returnHandler = response(statusCode, successMessage + ": " + uuid(), event, res.Items)
           })
           .catch(err => {
             console.log(err);
@@ -83,12 +91,12 @@ export const api: APIGatewayProxyHandler = async (event, _context) => {
         break;
       case 'POST':
         if (validationFailed(reqBody)) { return response(400, 'Missing fields to process request', event) }
-        console.log("First time var",reqBody);
+        console.log("First time var", reqBody);
         reqBody.id = uuid();
         reqBody.changeLog = [];
         reqBody.changeLog.push({ "currentStage": Stage.toAccept, "eventDate": currDate, "ip": event.multiValueHeaders['X-Forwarded-For'][0] });
         reqBody.stage = Stage.toAccept;
-        console.log("Second time var",reqBody);
+        console.log("Second time var", reqBody);
         body = await db.put({ TableName: ordersTable, Item: reqBody })
           .promise()
           .then(() => {
@@ -98,25 +106,25 @@ export const api: APIGatewayProxyHandler = async (event, _context) => {
         break;
       case 'PUT':
         paramId = event.pathParameters.id;
-        if(reqBody.stage){
-          if(typeof reqBody.stage === "string"){
+        if (reqBody.stage) {
+          if (typeof reqBody.stage === "string") {
             reqBody.stage = Stage[reqBody.stage as keyof typeof Stage];
           }
         }
         reqBody.changeLog = [];
         body = await db
-        .get({ TableName: ordersTable, Key: { id: paramId } })	
-        .promise()
-        .then(res => {
-          console.log(res);
-          res.Item.changeLog.forEach((element: ChangeLog) => {
-            reqBody.changeLog.unshift(element)
-          });
-        })
-        .catch(err => {
-          console.log(err);
-          returnHandler = response(statusCode, `${failedMessage}: ${err}`, event);
-        })
+          .get({ TableName: ordersTable, Key: { id: paramId } })
+          .promise()
+          .then(res => {
+            console.log(res);
+            res.Item.changeLog.forEach((element: ChangeLog) => {
+              reqBody.changeLog.unshift(element)
+            });
+          })
+          .catch(err => {
+            console.log(err);
+            returnHandler = response(statusCode, `${failedMessage}: ${err}`, event);
+          })
         reqBody.changeLog.unshift({ "currentStage": reqBody.stage, "eventDate": currDate, "ip": event.multiValueHeaders['X-Forwarded-For'][0] })
         const params = {
           Key: {
@@ -180,4 +188,7 @@ export const api: APIGatewayProxyHandler = async (event, _context) => {
   };
 
 }
+
+export const api: APIGatewayProxyHandler = middy(apiFunction)
+  .use(cors()) // Adds CORS headers to responses
 

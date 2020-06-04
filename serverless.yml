@@ -55,6 +55,7 @@ functions:
           path: v1/orders
           method: post
           cors: true
+
       - http:
           path: v1/orders/{id}
           method: put
