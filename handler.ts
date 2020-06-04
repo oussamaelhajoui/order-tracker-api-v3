@@ -94,6 +94,7 @@ const apiFunction: APIGatewayProxyHandler = async (event, _context) => {
         console.log("First time var", reqBody);
         reqBody.id = uuid();
         reqBody.changeLog = [];
+        reqBody.orderDate = currDate;
         reqBody.changeLog.push({ "currentStage": Stage.toAccept, "eventDate": currDate, "ip": event.multiValueHeaders['X-Forwarded-For'][0] });
         reqBody.stage = Stage.toAccept;
         console.log("Second time var", reqBody);
